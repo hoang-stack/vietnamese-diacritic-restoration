@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thêm dấu tiếng Việt</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #1c1b19; --muted: #6f6c66; --line: #e3e0d8;
+    --accent: #0f766e; --mark: #d9f2ee; --mark-ink: #0b5a54; --pop: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121413; --panel: #1b1e1d; --ink: #e9ebe9; --muted: #9aa19e; --line: #2b302e;
+      --accent: #2dd4bf; --mark: #133a35; --mark-ink: #99f6e4; --pop: #232726;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 26px; margin: 0; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 4px 0 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 22px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+            padding: 16px; min-width: 0; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+          margin-bottom: 10px; }
+  h2 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted);
+       margin: 0; font-weight: 600; }
+  textarea { width: 100%; min-height: 220px; resize: vertical; border: 1px solid var(--line);
+             border-radius: 8px; padding: 12px; font: inherit; background: var(--bg); color: var(--ink); }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  #out { min-height: 220px; padding: 12px; border-radius: 8px; background: var(--bg);
+         white-space: pre-wrap; word-wrap: break-word; }
+  .w { border-radius: 4px; cursor: pointer; }
+  .w.changed { background: var(--mark); color: var(--mark-ink); }
+  .w:hover { outline: 1px solid var(--accent); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  button { font: inherit; font-size: 13.5px; border: 1px solid var(--line); background: var(--panel);
+           color: var(--ink); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  .seg button { border-radius: 6px; padding: 2px 10px; }
+  .seg button.on { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+  .meta { color: var(--muted); font-size: 13px; margin-top: 8px; min-height: 20px; }
+  #pop { position: absolute; display: none; background: var(--pop); border: 1px solid var(--line);
+         border-radius: 8px; padding: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.12); z-index: 10; }
+  #pop div { padding: 3px 10px; border-radius: 5px; cursor: pointer; }
+  #pop div:hover, #pop div.cur { background: var(--mark); color: var(--mark-ink); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Thêm dấu tiếng Việt</h1>
+  <p class="sub">Gõ không dấu, nhận lại tiếng Việt có dấu. Mô hình: n-gram Kneser-Ney + beam search,
+     tự cài đặt bằng NumPy (<a href="/docs">API</a>).</p>
+
+  <div class="grid">
+    <section>
+      <div class="head"><h2>Không dấu</h2></div>
+      <textarea id="in" spellcheck="false" aria-label="Văn bản không dấu">Hom nay troi dep qua, toi muon di choi ho Guom voi ban be. Nam nay kinh te Viet Nam tang truong kha tot.</textarea>
+      <div class="chips" id="examples"></div>
+    </section>
+    <section>
+      <div class="head">
+        <h2>Có dấu</h2>
+        <div class="seg" role="group" aria-label="Kiểu đặt dấu">
+          <button data-style="old" class="on" title="Kiểu cũ: hòa, thủy">hòa</button>
+          <button data-style="new" title="Kiểu mới: hoà, thuỷ">hoà</button>
+          <button id="copy" title="Sao chép">Copy</button>
+        </div>
+      </div>
+      <div id="out" aria-live="polite"></div>
+      <div class="meta" id="meta"></div>
+    </section>
+  </div>
+</main>
+<div id="pop" role="listbox"></div>
+
+<script>
+const EXAMPLES = [
+  "Toi ban ban cho ban toi",
+  "Ma toi noi ma ma khong nghe, ma ma bat ma ma",
+  "Chinh phu yeu cau cac bo nganh day nhanh tien do giai ngan von dau tu cong",
+  "Doi tuyen Viet Nam gianh chien thang 2-0 truoc doi thu",
+  "Tieng Viet co sau thanh dieu: ngang, huyen, sac, hoi, nga, nang",
+];
+const $ = (id) => document.getElementById(id);
+let style = "old", last = null, timer, seq = 0;
+
+function esc(s) {
+  return s.replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+}
+
+function render(res) {
+  last = res;
+  let html = "", cursor = 0;
+  res.words.forEach((w, i) => {
+    html += esc(res.text.slice(cursor, w.start));
+    const alt = w.alternatives.length > 1 ? ` title="${esc(w.alternatives.join(" · "))}"` : "";
+    html += `<span class="w${w.changed ? " changed" : ""}" data-i="${i}"${alt}>${esc(res.text.slice(w.start, w.end))}</span>`;
+    cursor = w.end;
+  });
+  html += esc(res.text.slice(cursor));
+  $("out").innerHTML = html;
+  const changed = res.words.filter((w) => w.changed).length;
+  $("meta").textContent = `${changed}/${res.words.length} từ được thêm dấu · ${res.elapsed_ms} ms · bấm vào một từ để xem phương án khác`;
+}
+
+async function restore() {
+  const id = ++seq;
+  const res = await fetch("/restore", {method: "POST", headers: {"Content-Type": "application/json"},
+                                       body: JSON.stringify({text: $("in").value, style})});
+  if (id !== seq) return;
+  if (!res.ok) { $("meta").textContent = `Lỗi ${res.status}`; return; }
+  render(await res.json());
+}
+
+function schedule() { clearTimeout(timer); timer = setTimeout(restore, 180); }
+
+$("in").addEventListener("input", schedule);
+EXAMPLES.forEach((e) => {
+  const b = document.createElement("button");
+  b.textContent = e.length > 34 ? e.slice(0, 32) + "…" : e;
+  b.onclick = () => { $("in").value = e; restore(); };
+  $("examples").appendChild(b);
+});
+document.querySelectorAll("[data-style]").forEach((b) => b.onclick = () => {
+  style = b.dataset.style;
+  document.querySelectorAll("[data-style]").forEach((x) => x.classList.toggle("on", x === b));
+  restore();
+});
+$("copy").onclick = () => navigator.clipboard && navigator.clipboard.writeText($("out").textContent);
+
+// Click a word: choose another form. The edit is applied locally to the shown text.
+$("out").addEventListener("click", (e) => {
+  const span = e.target.closest(".w");
+  const pop = $("pop");
+  if (!span) { pop.style.display = "none"; return; }
+  const w = last.words[+span.dataset.i];
+  if (w.alternatives.length < 2) return;
+  pop.innerHTML = w.alternatives.map((a) => `<div class="${a === span.textContent ? "cur" : ""}">${esc(a)}</div>`).join("");
+  const r = span.getBoundingClientRect();
+  pop.style.left = `${r.left + window.scrollX}px`;
+  pop.style.top = `${r.bottom + window.scrollY + 4}px`;
+  pop.style.display = "block";
+  pop.onclick = (ev) => {
+    const d = ev.target.closest("div");
+    if (!d) return;
+    span.textContent = d.textContent;
+    span.classList.toggle("changed", d.textContent !== w.input);
+    pop.style.display = "none";
+  };
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#pop") && !e.target.closest(".w")) $("pop").style.display = "none";
+});
+restore();
+</script>
+</body>
+</html>
