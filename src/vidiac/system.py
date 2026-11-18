@@ -100,16 +100,14 @@ def build_system(
     timings: dict[str, float] = {}
     t0 = time.perf_counter()
 
-    # Vocabulary: the most frequent types (corpus types are already sorted by frequency within
-    # the full split; recount when training on a prefix).
-    if cfg.n_articles is None:
-        types, counts = corpus.types, corpus.counts
-    else:
-        upto = corpus.sent_offsets[corpus.article_offsets[cfg.n_articles]]
-        counts = np.bincount(corpus.ids[:upto], minlength=len(corpus.types))
-        order = np.argsort(-counts, kind="stable")
-        types, counts = [corpus.types[i] for i in order if counts[i]], counts[order]
-    vocab = Vocabulary(list(types[: cfg.vocab_size - 3]))
+    # Vocabulary: the most frequent types among the tokens actually used for training (a prefix
+    # or a subset of the corpus). Stable sorting keeps the full corpus's order on ties.
+    n_art = cfg.n_articles if cfg.n_articles is not None else corpus.n_articles
+    upto = corpus.sent_offsets[corpus.article_offsets[n_art]]
+    freq = np.bincount(corpus.ids[:upto], minlength=len(corpus.types))
+    order = np.argsort(-freq, kind="stable")
+    types = [corpus.types[i] for i in order if freq[i]]
+    vocab = Vocabulary(types[: cfg.vocab_size - 3])
     candidates = CandidateTable.build(
         corpus.word_counts(cfg.n_articles), cfg.min_count, cfg.max_candidates, allowed=vocab.stoi
     )

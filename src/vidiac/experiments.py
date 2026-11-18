@@ -127,10 +127,14 @@ def run(
             )
 
     if "curve" in stages:  # learning curve: how much text does each model need?
+        # Nested *random* subsets: the corpus is ordered (by source/date), so its first n
+        # articles are not a representative sample and would distort the curve.
+        perm = np.random.default_rng(0).permutation(train.n_articles)
         for n in (1000, 3000, 10000, 30000, train.n_articles):
-            cfg = SystemConfig(order=4, n_articles=n, classifier={"epochs": 1})
-            system = build_system(train, cfg, log=log.info)
-            words = int(train.sent_offsets[train.article_offsets[n]])
+            sub = train.subset(np.sort(perm[:n]))
+            cfg = SystemConfig(order=4, classifier={"epochs": 1})
+            system = build_system(sub, cfg, log=log.info)
+            words = int(sub.n_tokens)
             for kind in ("mostfreq", "lm", "classifier"):
                 res, _ = timed_eval(system.restorer(kind), val, system)
                 rec.add("curve", kind, "validation", res, n_articles=n, train_tokens=words)

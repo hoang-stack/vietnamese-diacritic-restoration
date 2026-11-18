@@ -78,3 +78,18 @@ def test_slots_follow_sentences(toy):
     slots = [make_slots(s, cands) for s in sentences(tokenize(text))]
     assert len(slots) == 2
     assert [s.forms for s in slots[0]][0] == cands.forms("toi")
+
+
+def test_corpus_subset_keeps_whole_articles():
+    from vidiac.corpus import TokenCorpus
+
+    corpus = TokenCorpus.build(["a b. c d e.", "f g.", "h. i j. k."], workers=1)
+    sub = corpus.subset(np.array([0, 2]))
+    assert sub.n_articles == 2
+    assert [[corpus.types[i] for i in s] for s in sub.sentences()] == [
+        ["a", "b"],
+        ["c", "d", "e"],
+        ["h"],
+        ["i", "j"],
+        ["k"],
+    ]

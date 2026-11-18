@@ -53,6 +53,29 @@ class TokenCorpus:
             {t: int(c) for t, c in zip(self.types, freq, strict=True) if c and t.isalpha()}
         )
 
+    def subset(self, article_ids: np.ndarray) -> TokenCorpus:
+        """A corpus made of the given articles only (types and counts are kept as they are)."""
+        sent_ranges = [
+            np.arange(self.article_offsets[a], self.article_offsets[a + 1]) for a in article_ids
+        ]
+        sents = np.concatenate(sent_ranges) if sent_ranges else np.zeros(0, np.int64)
+        lengths = self.sent_offsets[sents + 1] - self.sent_offsets[sents]
+        token_idx = (
+            np.concatenate(
+                [np.arange(self.sent_offsets[s], self.sent_offsets[s + 1]) for s in sents]
+            )
+            if len(sents)
+            else np.zeros(0, np.int64)
+        )
+        per_article = np.array([len(r) for r in sent_ranges], dtype=np.int64)
+        return TokenCorpus(
+            types=self.types,
+            counts=self.counts,
+            ids=self.ids[token_idx],
+            sent_offsets=np.concatenate([[0], np.cumsum(lengths)]),
+            article_offsets=np.concatenate([[0], np.cumsum(per_article)]),
+        )
+
     # --- persistence ------------------------------------------------------------------------
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
