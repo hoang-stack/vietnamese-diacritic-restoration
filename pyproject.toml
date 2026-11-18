@@ -38,4 +38,5 @@ select = ["E", "F", "W", "I", "B", "UP", "NPY", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecated"]
