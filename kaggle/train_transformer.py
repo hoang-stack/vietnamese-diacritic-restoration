@@ -235,7 +235,9 @@ def ambiguous_targets(x, y):
     """Mask of positions with >= 2 candidates whose gold form is one of them, and its index."""
     cand = cand_tab_t[x]  # (B, T, C)
     n_c = (cand >= 0).sum(-1)
-    hit = cand == y.unsqueeze(-1)
+    # cand >= 0: padding slots are -1, and so is the gold id of an out-of-vocabulary form, so
+    # without this check such a token would "match" a padding slot whose logit is -1e9.
+    hit = (cand == y.unsqueeze(-1)) & (cand >= 0)
     mask = (n_c >= 2) & hit.any(-1)
     return mask, cand, hit.float().argmax(-1)
 
