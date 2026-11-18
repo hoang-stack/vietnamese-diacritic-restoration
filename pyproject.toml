@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vidiac"
+version = "0.1.0"
+description = "Vietnamese diacritic restoration: a from-scratch Kneser-Ney n-gram LM with batched beam search, compared against a Transformer tagger."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = ["numpy>=1.26", "pandas>=2.0", "pyarrow>=14", "matplotlib>=3.8"]
+
+[project.optional-dependencies]
+api = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
+dev = ["vidiac[api]", "pytest>=8", "httpx>=0.27", "ruff>=0.6"]
+
+[project.scripts]
+vidiac = "vidiac.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+vidiac = ["static/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "NPY", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["NPY002"]
+"kaggle/*" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecated"]

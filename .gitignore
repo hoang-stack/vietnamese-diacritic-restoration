@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Corpus, token caches and the Kaggle upload folder (rebuilt by `vidiac prepare`)
+data/
+
+# Trained serving artifacts (rebuild with `vidiac train`)
+artifacts/
+
+# Kaggle: downloaded run outputs and the account-specific kernel metadata
+kaggle/output/
+kaggle/kernel-metadata.json
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
