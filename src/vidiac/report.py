@@ -111,13 +111,23 @@ def plot_curve(runs, out: Path, transformer_acc: float | None) -> Path | None:
             color="#6250d6",
             mec=SURFACE,
             mew=1.0,
-            label="Transformer (GPU)",
+            label="Transformer (GPU, full data)",
+        )
+        ax.annotate(
+            f"{100 * transformer_acc:.2f}%",
+            (full, 100 * transformer_acc),
+            xytext=(-8, -10),
+            textcoords="offset points",
+            ha="right",
+            va="top",
+            fontsize=9,
+            color=INK_2,
         )
     ax.set_xscale("log")
     ax.set_xlabel("training tokens (log scale)")
     ax.set_ylabel("validation word accuracy (%)")
-    ax.legend(loc="lower right", fontsize=9)
-    ax.set_title("More text helps every model, the LM most")
+    ax.legend(loc="center right", bbox_to_anchor=(1.0, 0.42), fontsize=9)
+    ax.set_title("Validation accuracy vs. training data (random article subsets)")
     return _save(fig, out / "learning_curve.png")
 
 
@@ -155,6 +165,7 @@ def plot_tradeoffs(runs, out: Path) -> Path | None:
         ax.set_xscale("log", base=2)
         ax.set_xticks([b[0] for b in beam], [str(b[0]) for b in beam])
         ax.set_xlabel("beam width (labels: decoding speed)")
+        ax.margins(y=0.1)
         ax.set_ylabel("validation accuracy (%)")
         ax.set_title("Beam width: accuracy vs speed")
     if prune:
@@ -188,7 +199,8 @@ def plot_test(runs, out: Path) -> Path | None:
     rows = [r for r in runs if r["split"] == "test"]
     if not rows:
         return None
-    rows.sort(key=lambda r: r["accuracy"])
+    off_scale = [r for r in rows if r["accuracy"] < 0.9]
+    rows = sorted((r for r in rows if r["accuracy"] >= 0.9), key=lambda r: r["accuracy"])
     fig, ax = plt.subplots(figsize=(8.6, 0.55 * len(rows) + 1.2))
     for y, r in enumerate(rows):
         ax.plot([100 * r["ci_low"], 100 * r["ci_high"]], [y, y], color=ACCENT, alpha=0.45)
@@ -205,9 +217,12 @@ def plot_test(runs, out: Path) -> Path | None:
     ax.set_yticks(range(len(rows)), [r["name"] for r in rows])
     ax.grid(axis="y", visible=False)
     ax.tick_params(axis="y", length=0)
-    lo = min(100 * r["ci_low"] for r in rows if r["accuracy"] > 0.9)
+    lo = min(100 * r["ci_low"] for r in rows)
     ax.set_xlim(lo - 0.5, 100.2)
-    ax.set_xlabel("test word accuracy (%), 95% bootstrap CI over articles")
+    note = "; ".join(f"{r['name']}: {100 * r['accuracy']:.2f}% (off scale)" for r in off_scale)
+    ax.set_xlabel(
+        "test word accuracy (%), 95% bootstrap CI over articles" + (f"\n{note}" if note else "")
+    )
     ax.set_title("Test accuracy (3,000 held-out articles)")
     return _save(fig, out / "test_accuracy.png")
 
